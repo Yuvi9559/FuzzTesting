@@ -1,0 +1,174 @@
+// API Types matching Go structs
+
+export interface Bot {
+  id: string;
+  name: string;
+  hostname: string;
+  status: BotStatus;
+  capabilities: string[];
+  current_job_id?: string | null;
+  last_heartbeat: string;
+  registered_at: string;
+  api_endpoint?: string;
+  is_online: boolean;
+  // Legacy fields for backward compatibility
+  current_job?: string;
+  last_seen?: string;
+  ip?: string;
+  failure_count?: number;
+}
+
+export enum BotStatus {
+  Idle = 'idle',
+  Busy = 'busy',
+  Offline = 'offline',
+  Failed = 'failed',
+}
+
+// Job configuration interfaces
+export interface JobCoverageConfig {
+  enabled: boolean;
+  format: 'json' | 'html' | 'lcov' | 'cobertura';
+}
+
+export interface JobConfig {
+  coverage?: JobCoverageConfig;
+  [key: string]: any;
+}
+
+export interface Job {
+  id: string;
+  name: string;
+  status: JobStatus;
+  priority: JobPriority;
+  fuzzer: string;
+  target: string;
+  target_args: string[];
+  corpus?: string[];
+  dictionary?: string;
+  timeout_sec: number;
+  memory_limit: number;
+  assigned_bot?: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  timeout_at: string;
+  message?: string;
+  config?: JobConfig;
+  enable_coverage?: boolean;
+  coverage_format?: string;
+}
+
+export enum JobStatus {
+  Pending = 'pending',
+  Assigned = 'assigned',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+}
+
+export enum JobPriority {
+  Low = 'low',
+  Normal = 'normal',
+  High = 'high',
+}
+
+export interface CrashResult {
+  id: string;
+  job_id: string;
+  bot_id: string;
+  campaign_id: string;
+  discovered_at: string;  // ISO 8601 timestamp
+  input_size_bytes: number;
+  hash: string;
+  type: string;
+  severity: string;
+  is_unique?: boolean;
+  signal?: number;
+  exit_code?: number;
+  stack_trace?: string;
+  input?: string; // Base64 encoded (only when downloading)
+  output?: string;
+  // Legacy field aliases for backward compatibility
+  timestamp?: string;
+  size?: number;
+}
+
+export interface CoverageResult {
+  id: string;
+  job_id: string;
+  bot_id: string;
+  timestamp: string;
+  edges: number;
+  covered_edges: number;
+  new_edges: number;
+  coverage_percent: number;
+}
+
+export interface SystemStatus {
+  status: string;
+  timestamp: string;
+  version: string;
+  uptime: number;
+  database: string;
+  bots: {
+    total: number;
+    idle: number;
+    busy: number;
+    offline: number;
+  };
+  jobs: {
+    total: number;
+    pending: number;
+    running: number;
+    completed: number;
+    failed: number;
+  };
+}
+
+export interface HealthCheck {
+  status: string;
+  timestamp: string;
+  database: string;
+  version?: string;
+  build_time?: string;
+  git_commit?: string;
+}
+
+export interface ApiError {
+  error: string;
+  code?: string;
+  details?: Record<string, any>;
+}
+
+// Dashboard specific types
+export interface DashboardStats {
+  totalBots: number;
+  activeBots: number;
+  totalJobs: number;
+  runningJobs: number;
+  totalCrashes: number;
+  uniqueCrashes: number;
+  averageCoverage: number;
+  jobsPerHour: number;
+}
+
+export interface TimeSeriesData {
+  timestamp: string;
+  value: number;
+}
+
+export interface CoverageHistory {
+  job_id: string;
+  data: TimeSeriesData[];
+}
+
+export interface CrashTrend {
+  date: string;
+  crashes: number;
+  unique_crashes: number;
+}
+
+// Re-export coverage types
+export * from './coverage';

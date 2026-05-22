@@ -1,0 +1,76 @@
+node_modules/
+data/
+configs/
+.idea/
+.claude/
+AGENTS.md
+work/
+
+# Playwright test artifacts
+playwright-report/
+test-results/
+playwright/.cache/
+
+# NPM
+package-lock.json
+
+# Environment files
+.env
+.env.local
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+
+# Compiled binaries
+test_crasher
+test_crash
+test_fuzzer
+libfuzzer_test
+*.test
+/a.out
+/bot
+/master
+/fuzztesting-bot
+/fuzztesting-master
+
+# Crash artifacts
+crash-*
+/crash-*
+
+# Go build artifacts
+/cmd/bot/bot
+/cmd/master/master
+
+# Database files
+fuzztesting.db
+master.out
+/data/*.db
+/data/*.db-journal
+
+# Temporary files
+*.tmp
+*.log
+
+# Configuration files (keep examples only)
+bot.yaml
+bot-docker.yaml
+
+# Test scripts in root (temporary location)
+/test_*.sh
+/debug_*.sh
+
+# Temporary documentation
+/*_issue.md
+/fix_*.md
+/verify_*.md
+
+# IDE files
+.vscode/
+
+# Generated code (auto-generated from OpenAPI specs)
+pkg/api/v1/generated/*.gen.go
+pkg/clients/go/generated/
+pkg/clients/python/fuzztesting/
+pkg/clients/typescript/dist/

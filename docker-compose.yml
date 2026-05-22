@@ -1,0 +1,205 @@
+services:
+  # Master server with Web UI
+  master:
+    build:
+      context: .
+      target: master
+      args:
+        VERSION: ${VERSION:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    container_name: fuzztesting-master
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+    ports:
+      - "8080:8080"  # Web UI and API port (changed from 8080 to avoid conflicts)
+      - "9090:9090"  # Metrics port
+    volumes:
+      - master-data:/app/data
+      - ./master-docker.yaml:/app/master.yaml:ro
+    environment:
+      - fuzztesting_LOG_LEVEL=debug
+    networks:
+      - fuzztesting
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Bot instances (scale as needed)
+  bot:
+    build:
+      context: .
+      target: bot
+      args:
+        VERSION: ${VERSION:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    restart: unless-stopped
+    depends_on:
+      master:
+        condition: service_healthy
+    volumes:
+      - ./bot-docker.yaml:/app/bot-docker.yaml:ro
+      - bot-work:/app/work
+    environment:
+      - fuzztesting_LOG_LEVEL=debug
+      - AFL_SKIP_CPUFREQ=1
+      - AFL_NO_AFFINITY=1
+    command: ["./fuzztesting-bot", "-config", "bot-docker.yaml", "-log-level", "debug"]
+    networks:
+      - fuzztesting
+    deploy:
+      replicas: 1  # Number of bot instances
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    security_opt:
+      - seccomp:unconfined  # Required for some fuzzers
+    cap_add:
+      - SYS_PTRACE  # Required for debugging crashes
+
+  # Development bot with more tools
+  bot-dev:
+    build:
+      context: .
+      target: development
+      args:
+        VERSION: ${VERSION:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    container_name: fuzztesting-bot-dev
+    restart: unless-stopped
+    depends_on:
+      master:
+        condition: service_healthy
+    volumes:
+      - ./bot-docker.yaml:/app/bot-docker.yaml:ro
+      - bot-dev-work:/app/work
+      - ./:/workspace  # Mount source code for development
+    environment:
+      - fuzztesting_LOG_LEVEL=debug
+      - fuzztesting_DEV=true
+    command: ["./fuzztesting-bot", "-config", "bot-docker.yaml", "-log-level", "debug"]
+    networks:
+      - fuzztesting
+    profiles:
+      - development
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN  # For advanced debugging
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fuzztesting-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - fuzztesting
+    profiles:
+      - monitoring
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fuzztesting-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - fuzztesting
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+  # PostgreSQL database (alternative to SQLite)
+  postgres:
+    image: postgres:16-alpine
+    container_name: fuzztesting-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=fuzztesting
+      - POSTGRES_USER=fuzztesting
+      - POSTGRES_PASSWORD=changeme
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - fuzztesting
+    profiles:
+      - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fuzztesting"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO S3-compatible object storage
+  minio:
+    image: minio/minio:latest
+    container_name: fuzztesting-minio
+    ports:
+      - "9000:9000"    # S3 API
+      - "9001:9001"    # Console UI
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-fuzztesting}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-fuzztesting123}
+      MINIO_DEFAULT_BUCKETS: ${MINIO_DEFAULT_BUCKETS:-corpus,quarantine,backup}
+    volumes:
+      - minio-data:/data
+      - ./docker/configs/minio-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fuzztesting
+
+networks:
+  fuzztesting:
+    driver: bridge
+
+volumes:
+  master-data:
+    driver: local
+  bot-work:
+    driver: local
+  bot-dev-work:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  postgres-data:
+    driver: local
+  minio-data:
+    driver: local

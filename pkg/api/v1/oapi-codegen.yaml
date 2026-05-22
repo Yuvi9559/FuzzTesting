@@ -1,0 +1,8 @@
+# oapi-codegen v2 configuration for fuzztesting API
+# This configuration generates Chi router server interfaces, types, and embedded specs
+
+package: generated
+generate:
+  chi-server: true
+  models: true
+  embedded-spec: true
